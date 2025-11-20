@@ -1,32 +1,83 @@
 // app/rooms/[slug]/page.tsx
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Calendar, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
+import { useToast } from '@/components/ui/use-toast';
 import { Navbar } from '@/components/layout/navbar';
 
-const getRoom = (slug: string) => {
-  const rooms = [
-    {
-      id: '1',
-      title: 'Deluxe Room',
-      description: 'Spacious room with a king-size bed and city view',
-      price: 199,
-      size: '45 m²',
-      maxGuests: 2,
-      amenities: ['Free WiFi', 'Air Conditioning', 'TV', 'Mini Bar', 'Safe', 'Hairdryer'],
-      image: '/room-1.jpg'
-    },
-    // Add more rooms as needed
-  ];
-
-  return rooms.find(room => room.id === slug) || null;
-};
-
 export default function RoomDetailPage({ params }: { params: { slug: string } }) {
-  const room = getRoom(params.slug);
+  const router = useRouter();
+  const { toast } = useToast();
+  const [checkIn, setCheckIn] = useState<Date | undefined>();
+  const [checkOut, setCheckOut] = useState<Date | undefined>();
+  const [guests, setGuests] = useState(1);
+  const [isChecking, setIsChecking] = useState(false);
 
-  if (!room) {
-    notFound();
-  }
+  const checkAvailability = async () => {
+    if (!checkIn || !checkOut) {
+      toast({
+        title: 'Please select check-in and check-out dates',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (checkIn >= checkOut) {
+      toast({
+        title: 'Check-out date must be after check-in date',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsChecking(true);
+      const response = await fetch('/api/check-availability', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomId: params.slug,
+          checkIn: checkIn.toISOString(),
+          checkOut: checkOut.toISOString(),
+          guests,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.available) {
+        router.push(
+          `/book?roomId=${params.slug}` +
+            `&checkIn=${checkIn.toISOString()}` +
+            `&checkOut=${checkOut.toISOString()}` +
+            `&guests=${guests}` +
+            `&totalPrice=${data.totalPrice}`
+        );
+      } else {
+        toast({
+          title: 'Room not available',
+          description: data.message || 'Please select different dates',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to check availability. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -34,43 +85,56 @@ export default function RoomDetailPage({ params }: { params: { slug: string } })
       <main className="flex-1 py-16">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            <div>
-              <div className="h-96 bg-gray-200 rounded-lg mb-6"></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="h-40 bg-gray-200 rounded"></div>
-                <div className="h-40 bg-gray-200 rounded"></div>
-              </div>
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-4">{room.title}</h1>
-              <p className="text-2xl font-semibold text-primary mb-6">${room.price} <span className="text-base font-normal text-gray-600">/ night</span></p>
-              
-              <p className="text-gray-700 mb-8">{room.description}</p>
-              
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div>
-                  <p className="text-sm text-gray-500">Size</p>
-                  <p className="font-medium">{room.size}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Max Guests</p>
-                  <p className="font-medium">{room.maxGuests}</p>
-                </div>
-              </div>
+            {/* Room details */}
+            {/* ... existing room details ... */}
 
-              <h3 className="text-lg font-semibold mb-4">Amenities</h3>
-              <div className="grid grid-cols-2 gap-2 mb-8">
-                {room.amenities.map((amenity, i) => (
-                  <div key={i} className="flex items-center">
-                    <span className="mr-2">✓</span>
-                    <span>{amenity}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Booking form */}
+            <div className="bg-white p-6 rounded-lg shadow-md h-fit sticky top-24">
+              <h2 className="text-2xl font-bold mb-6">Book Your Stay</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Check-in</label>
+                  <DatePicker
+                    selected={checkIn}
+                    onSelect={setCheckIn}
+                    placeholderText="Select check-in date"
+                    minDate={new Date()}
+                    className="w-full"
+                  />
+                </div>
 
-              <Button size="lg" className="w-full" asChild>
-                <a href="/book">Book Now</a>
-              </Button>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Check-out</label>
+                  <DatePicker
+                    selected={checkOut}
+                    onSelect={setCheckOut}
+                    placeholderText="Select check-out date"
+                    minDate={checkIn || new Date()}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Guests</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max={room?.maxGuests || 4}
+                    value={guests}
+                    onChange={(e) => setGuests(parseInt(e.target.value) || 1)}
+                    className="w-full"
+                  />
+                </div>
+
+                <Button
+                  onClick={checkAvailability}
+                  disabled={isChecking}
+                  className="w-full"
+                >
+                  {isChecking ? 'Checking...' : 'Check Availability'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

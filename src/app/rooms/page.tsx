@@ -1,57 +1,122 @@
-// app/rooms/page.tsx
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+// app/book/page.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import { Navbar } from '@/components/layout/navbar';
 
-const rooms = [
-  {
-    id: 1,
-    title: 'Deluxe Room',
-    description: 'Spacious room with a king-size bed and city view',
-    price: 199,
-    image: '/room-1.jpg'
-  },
-  {
-    id: 2,
-    title: 'Executive Suite',
-    description: 'Luxurious suite with separate living area and balcony',
-    price: 299,
-    image: '/room-2.jpg'
-  },
-  {
-    id: 3,
-    title: 'Presidential Suite',
-    description: 'Ultimate luxury with premium amenities and panoramic views',
-    price: 499,
-    image: '/room-3.jpg'
-  }
-];
+export default function BookPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const [isBooking, setIsBooking] = useState(false);
 
-export default function RoomsPage() {
+  // Get booking details from URL
+  const roomId = searchParams.get('roomId');
+  const checkIn = searchParams.get('checkIn');
+  const checkOut = searchParams.get('checkOut');
+  const guests = searchParams.get('guests');
+  const totalPrice = searchParams.get('totalPrice');
+
+  // Redirect if missing required params
+  useEffect(() => {
+    if (!roomId || !checkIn || !checkOut || !guests || !totalPrice) {
+      router.push('/rooms');
+    }
+  }, [roomId, checkIn, checkOut, guests, totalPrice, router]);
+
+  const handleBooking = async () => {
+    if (status === 'unauthenticated') {
+      router.push(`/auth/signin?callbackUrl=/book?${searchParams.toString()}`);
+      return;
+    }
+
+    try {
+      setIsBooking(true);
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomId,
+          checkIn,
+          checkOut,
+          guests: parseInt(guests || '1'),
+          totalPrice: parseFloat(totalPrice || '0'),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: 'Booking confirmed!',
+          description: 'Your booking has been confirmed. Check your email for details.',
+        });
+        router.push('/my-bookings');
+      } else {
+        throw new Error(data.message || 'Failed to create booking');
+      }
+    } catch (error) {
+      console.error('Booking failed:', error);
+      toast({
+        title: 'Booking failed',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-1 py-16">
-        <div className="container">
-          <h1 className="text-4xl font-bold mb-12 text-center">Our Rooms & Suites</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {rooms.map((room) => (
-              <Card key={room.id} className="overflow-hidden">
-                <div className="h-64 bg-gray-200"></div>
-                <CardHeader>
-                  <CardTitle>{room.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">{room.description}</p>
-                  <p className="text-2xl font-bold">${room.price} <span className="text-sm font-normal text-gray-500">/ night</span></p>
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full" asChild>
-                    <a href={`/rooms/${room.id}`}>View Details</a>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+        <div className="container max-w-4xl">
+          <div className="bg-white rounded-lg shadow-md p-8">
+            <h1 className="text-3xl font-bold mb-8">Complete Your Booking</h1>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Check-in</h3>
+                  <p>{new Date(checkIn || '').toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Check-out</h3>
+                  <p>{new Date(checkOut || '').toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Guests</h3>
+                  <p>{guests}</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Total Price</h3>
+                  <p className="text-2xl font-bold">${totalPrice}</p>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Button
+                  onClick={handleBooking}
+                  disabled={isBooking}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isBooking ? 'Processing...' : 'Confirm Booking'}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
