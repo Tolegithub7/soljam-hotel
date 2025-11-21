@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: soljam_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: soljam_hotel
+    ports:
+      - '5432:5432'
+    volumes:
+      - soljam_postgres_data:/var/lib/postgresql/data
+
+  strapi:
+    image: strapi/strapi:latest
+    container_name: soljam_strapi
+    restart: unless-stopped
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: soljam_hotel
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+      APP_KEYS: "toBeReplacedInEnv,toBeReplacedInEnv2"
+      API_TOKEN_SALT: "toBeReplacedInEnv"
+      ADMIN_JWT_SECRET: "toBeReplacedInEnv"
+      JWT_SECRET: "toBeReplacedInEnv"
+    depends_on:
+      - postgres
+    ports:
+      - '1337:1337'
+    volumes:
+      - ./strapi:/srv/app
+
+volumes:
+  soljam_postgres_data:
