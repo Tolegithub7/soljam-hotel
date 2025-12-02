@@ -22,7 +22,7 @@ model Room {
   id          String    @id @default(cuid())
   title       String
   description String
-  price       Decimal   @db.Numeric(10, 2)
+  price       Decimal   @db.Decimal(10, 2)
   capacity    Int
   slug        String    @unique
   images      String[]
@@ -38,7 +38,7 @@ model Booking {
   roomId     String
   checkIn    DateTime
   checkOut   DateTime
-  totalPrice Decimal  @db.Numeric(10, 2)
+  totalPrice Decimal  @db.Decimal(10, 2)
   status     String
 }
 
